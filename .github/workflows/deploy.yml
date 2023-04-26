@@ -1,0 +1,35 @@
+name: Deploy to Linode
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.17'
+      - name: Install dependencies
+        run: |
+          go get github.com/gorilla/mux
+          go get go.mongodb.org/mongo-driver/mongo
+          go get go.mongodb.org/mongo-driver/bson
+      - name: Build and test
+        run: |
+          go build -o url-shortener
+          go test -v ./...
+      - name: Deploy to Linode
+        uses: linode/setup-linode@v1
+        with:
+          api-token: ${{ secrets.LINODE_API_TOKEN }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          root-pass: ${{ secrets.ROOT_PASSWORD }}
+          linode-id: ${{ secrets.LINODE_INSTANCE_ID }}
+        run: |
+          scp url-shortener root@${{ secrets.LINODE_IP_ADDRESS }}:/root/url-shortener
+          ssh root@${{ secrets.LINODE_IP_ADDRESS }} 'systemctl stop url-shortener.service; mv /root/url-shortener /usr/local/bin; systemctl start url-shortener.service'
